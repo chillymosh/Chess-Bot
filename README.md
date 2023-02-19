@@ -1,54 +1,25 @@
-# Chess-Bot By Davi0k
-Chess-Bot is a [Discord](https://discordapp.com/) BOT used to play chess directly in text channels against other users. It includes also a graphical chess board and a simple statistics database for each player. 
+# Chess-Bot By Scott Serven
+This was initially based on [Chess-Bot By DaviOk](https://github.com/Davi0k/Chess-Bot), but has 
+been mostly rewritten to support additional features, such as:
 
-It makes use of the `python-chess` library as a chess engine. You can find it comfortably [here](https://python-chess.readthedocs.io/en/latest/).
+* Postgres match persistence in case of bot/server restarts
+* Discord Slash commands
+* Command optimizations
+* UI upgrades
+* Leaderboard
 
-## Starting the BOT
-First, create a copy of `.env.example` and install all of the needed PIP packages using the `requirements.txt` file:
-```
-cp .env.example .env
-python -m pip install -r requirements.txt
-```
-Now, open the newly created `.env` file and set-up these environment variables:
-
-`TOKEN`: The token of the BOT generated in [the developer portal](https://discordapp.com/developers/applications);
-
-`DATABASE_HOST`: The hostname of the dedicated MongoDB database;
-`DATABASE_PORT`: The port of the dedicated  MongoDB database;
-`DATABASE_NAME`: The name that will be used for the database;
-
-Finally, you can run the BOT very easy:
-```
-python bot.py
-```
-
-## Requirements for correct functioning
-In order to function correctly, the BOT needs the following active privileges within the Server that will host it:
-* `View Channels` permission: Necessary to allow the BOT to be able to view all text channels where users can play;
-* `Send Messages` permission: Necessary to allow the BOT to send messages relating to invitations, games and statistics within the text channels;
-* `Attach Files` permission: Necessary to allow the bot to send images containing the visual and current status of the chessboard within the text channels;
-
-Also, to get the best possible experience, you can activate the following Intent:
-* `Server Members Intent`: It allows the BOT to view the entire list of members connected to the Server that contains it, and not just that of users connected to any voice channel;
+It makes use of the [python-chess](https://python-chess.readthedocs.io/en/latest/) library as a chess engine.
 
 ## Commands available within Chess-Bot
-Several commands are available in Chess-Bot. They are divided into two categories: Main and Chess.
-
-### Main Category:
-The Main Category contains some useful and utility-based commands to simplify and extend  the user experience.
-* `!rnd|random [minimum - optional] [maximum - optional]`: Draws a random number between `minimum` and `maximum`. If `minimum` and `maximum` are omitted, a number from 0 to 100 will be drawn;
-* `!coin|flip|coinflip`: Flips a coin and returns the result;
-* `!about|whois|info [user - optional]`: Shows different kind of informations about a specified `user`. If `user` is omitted, the context user info will be shown.
-
-### Chess Category:
-The Chess Category contains all the main and unique commands of Chess-Bot to be able to play chess against your friends, or perhaps your enemies...
-* `!chess new|create|invite [user]`: Sends an invite for a new match to a specified `user`;
-* `!chess accept [user]`: Accepts an invite sent by a specified `user` and starts a new match;
-* `!chess invites`: Shows every out-coming and in-coming invites for the context user;
-* `!chess move|execute [initial] [final]`: Takes an `initial` and a `final` chess coordinate and executes a move in the current match;
-* `!chess show|chessboard`: Shows the current match chessboard disposition;
-* `!chess surrend`: Surrend and lost the current match;
-* `!chess statistics|stats [user - optional]`: Shows the statistics of a Discord user who played at least one match. If `user` is omitted, the context user stats will be shown.
+* `/new [user]`: Sends an invite for a new match to a specified `user`, or omit the `user` to open the match for anybody to accept.
+* `/accept`: Accepts an invitation in the current channel, that is either open to anybody, or specifically sent to you.
+* `/decline`: Decline an invitation that was specifically sent to you in the current channel.
+* `/cancel`: Cancel an existing invitation you initiated with the `/new` command.
+* `/move [start] [end]`: Takes a `start` and a `end` chess coordinate and executes a move in the current match.  These are in the format of A1 to H8.
+* `/show`: Re-shows the current board.
+* `/surrender`: Surrender and lose the current match.
+* `/stats [user]`: Shows the statistics of wins/losses and ratio for either youself, or an optional specified user.
+* `/leaderboard`: Shows the top 10 players according to the highest win/loss ratios.
 
 ## Some screen-shots about the BOT
 ![](https://i.ibb.co/BVcMNDj/Help.png)
@@ -57,6 +28,130 @@ The Chess Category contains all the main and unique commands of Chess-Bot to be 
 
 ![](https://i.ibb.co/vv6RKHY/Start.png)
 
+
+# Installation 
+
+## Setup the Code
+
+### Step 1 - Clone the source
+Clone this repo somewhere.  I'd recommend using /opt and setting up a separate user to own the files.
+
+### Step 2 - Setup a Virtual Environment
+
+As the user that owns the source folder, run
+```
+python3 -m venv venv
+source ./venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Step 3 - Setup a .env file
+
+The `.env` file will hold important settings for the bot, and must be located in the root of the source folder.  The `.env.example` file will show the necessary values that must be setup.
+
+`TOKEN` - this is the Discord Bot token you will get from the (Discord Bot Registration)[#Discord Bot Registration] section of these instructions.
+`GUILD_IDS` - this may be one, or multiple (comma separate) Discord Server ID's that the bot will run against.
+`STORAGE_TYPE` - this should be set to postgres, no other databases are currently supported.
+`DATABASE_URL'` - this is a postgres formatted connection string. See the .env.example for the basic structure.
+
+
+## Discord Bot Registration
+
+### Step 1 - Create Discord App
+1) Go to https://discord.com/developers/applications and create a new Application.
+
+* All **General Information** fields can be left as their default values.
+
+### Step 2 - Bot Setup
+1) Go to the **Bot** menu and click **Add Bot**, and give it a name
+
+2) Click **Reset Token**.  This will show your **Bot Token**.  This will need to be stored in your .env file in the TOKEN value.
+
+3) Under **Privileged Gateway Intents**, enable:
+    * Presence Intent
+    * Server Members Intent
+    * Message Content Intent
+
+### Step 3 - Grant Bot Permissions
+1) Click the **OAuth2** menu at the left, then **URL Generator**.
+2) Under **Scopes**, select
+    * **bot**
+    * **applications.commands**
+
+3) Under **Bot Permissions**, select
+    * **Send Messages**
+    * **Manage Messages**
+    * **Attach Files**
+
+4) Copy the **Generated URL** at the bottom of the page, and paste that into your browser address bar.
+5) Choose which Discord server you want to grant the bot those permissions on.
+
+## Setup Postgres
+
+### Step 1 - Install Postgres
+```bash
+sudo apt install postgres 
+```
+
+### Step 2 - Create the Database/User
+
+Launch the Postgres CLI interface (psql) as the postgres user (which was created automatically when postgres was installed during the prior step)
+
+```bash
+sudo -u postgres psql
+```
+
+Create a DB account for the bot (change 'chessbot-pwd' to whatever you want.  This value will be part
+of the DATABASE_URL connection string in the `.env` file.
+
+```sql
+create user chessbot with password 'chessbot-pwd';
+```
+
+Create the database for the bot
+
+```sql
+create database chessbot with owner=chessbot;
+```
+
+Exit Postgres
+
+```sql
+quit
+```
+<br/>
+
+## Run the Bot 
+If everything has been setup correctly, you should be able to run the bot like
+```bash
+python bot.py
+```
+
+## Setup a Systemd Service (Optional)
+If you're using a Systemd based system, you can create a `/etc/systemd/system/chessbot.service` file that looks like the following.
+
+```bash
+[Unit]
+Description=ChessBot
+
+[Service]
+User=chessbot
+WorkingDirectory=/opt/Chess-Bot/
+ExecStart=/opt/Chess-Bot/venv/bin/python bot.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+Make note to change the `User` value to whatever user account owns the Chess-Bot source folder.
+
+The service can be enabled/started by running the following
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable chessbot.service
+sudo systemctl start chessbot.service
+```
+
 ## License
 This project is released under the `MIT License`. You can find the original license source here: [https://opensource.org/licenses/MIT](https://opensource.org/licenses/MIT).
 
@@ -64,6 +159,7 @@ This project is released under the `MIT License`. You can find the original lice
 MIT License
 
 Copyright (c) 2020 Davide Casale
+Copyright (c) 2023 Scott Serven
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
