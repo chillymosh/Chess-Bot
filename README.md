@@ -22,7 +22,7 @@ It makes use of the [python-chess](https://python-chess.readthedocs.io/en/latest
 * `/leaderboard`: Shows the top 10 players according to the highest win/loss ratios.
 
 ## Screenshots
-![Example Image](https://github.com/scottserven/Chess-Bot/blob/master/sample_images/sample.png)
+![Example Image](https://github.com/scott-serven/Chess-Bot/blob/master/sample_images/sample.png)
 
 
 # Installation 
