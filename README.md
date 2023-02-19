@@ -21,12 +21,8 @@ It makes use of the [python-chess](https://python-chess.readthedocs.io/en/latest
 * `/stats [user]`: Shows the statistics of wins/losses and ratio for either youself, or an optional specified user.
 * `/leaderboard`: Shows the top 10 players according to the highest win/loss ratios.
 
-## Some screen-shots about the BOT
-![](https://i.ibb.co/BVcMNDj/Help.png)
-
-![](https://i.ibb.co/hgks3Vp/Commands.png)
-
-![](https://i.ibb.co/vv6RKHY/Start.png)
+## Screenshots
+![Example Image](https://github.com/scottserven/Chess-Bot/blob/main/sample/sample.png)
 
 
 # Installation 
