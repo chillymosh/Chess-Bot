@@ -5,7 +5,8 @@ import json
 from json import JSONEncoder
 from datetime import datetime
 from dotenv import load_dotenv
-from chess import WHITE, BLACK, Board, Move, parse_square, SQUARE_NAMES
+from chess import WHITE, BLACK, Board, Move, parse_square, pgn, SQUARE_NAMES
+from chess.pgn import StringExporter
 from PIL import Image
 import discord
 from discord.ext import commands
@@ -357,25 +358,30 @@ class Chess(commands.Cog):
         :param ctx:
         :return:
         """
-        current_game = GameStorage.db.get_current_game(ctx.channel_id)
-        if not current_game:
+        game_rec = GameStorage.db.get_current_game(ctx.channel_id)
+        if not game_rec:
             await self.send_error(ctx, "No active games were found.  Use `/new` to start a new match.")
             return
 
-        if ctx.author_id not in [current_game['user_id'], current_game['opponent_id']]:
+        if ctx.author_id not in [game_rec['user_id'], game_rec['opponent_id']]:
             await self.send_error(ctx, "You are not a participant in the current game, so you can't surrender")
             return
 
         loser_id = ctx.author_id
-        if current_game['user_id'] == ctx.author_id:
-            winner_id = current_game['opponent_id']
+        if game_rec['user_id'] == ctx.author_id:
+            winner_id = game_rec['opponent_id']
         else:
-            winner_id = current_game['user_id']
+            winner_id = game_rec['user_id']
 
-        GameStorage.db.surrender_game(current_game['match_id'], winner_id, loser_id)
+        GameStorage.db.surrender_game(game_rec['match_id'], winner_id, loser_id)
         GameStorage.db.add_user_stats_win(ctx.guild_id, winner_id)
         GameStorage.db.add_user_stats_loss(ctx.guild_id, loser_id)
-        await ctx.send(f"{ctx.author.mention} has surrendered!")
+
+        current_game = await self.convert_game_state_to_game(game_rec['game_state'])
+        await self.render_game_board(ctx,
+                                     current_game,
+                                     message=f"**{ctx.author.name} has Surrendered!**",
+                                     show_pgn=True)
 
     @cog_ext.cog_slash(name="leaderboard",
                        description="Top 10 ChessBot Players",
@@ -424,7 +430,7 @@ class Chess(commands.Cog):
         embed.add_field(name="Losses", value=f"{stats['losses']}", inline=False)
         await ctx.send(embed=embed)
 
-    async def render_game_board(self, ctx, current_game):
+    async def render_game_board(self, ctx, current_game, message=None, show_pgn=False):
         """
         Constructs the Embed object for the game board.  Indicates the players, their colors, who's turn it is
         and the most recent move.
@@ -437,10 +443,10 @@ class Chess(commands.Cog):
 
         embed = discord.Embed()
         embed.add_field(name='',
-                        value=f"**White**: {white_user.name} {('', '*(your turn)*')[current_game.board.turn]}",
+                        value=f"**White**: {white_user.mention} {('', '*(your turn)*')[current_game.board.turn]}",
                         inline=False)
         embed.add_field(name='',
-                        value=f"**Black**: {black_user.name} {('*(your turn)*', '')[current_game.board.turn]}",
+                        value=f"**Black**: {black_user.mention} {('*(your turn)*', '')[current_game.board.turn]}",
                         inline=False)
 
         if len(current_game.board.move_stack) > 0:
@@ -452,6 +458,7 @@ class Chess(commands.Cog):
                                 inline=False)
 
         if current_game.board.is_stalemate():
+            show_pgn = True
             embed.add_field(name='',
                             value="**Stalemate! The game is a draw!**", inline=False)
 
@@ -461,14 +468,26 @@ class Chess(commands.Cog):
                             inline=False)
 
         if current_game.board.is_checkmate():
+            show_pgn = True
             embed.add_field(name='',
                             value=f"**Checkmate! "
-                                  f"{(white_user.mention, black_user.mention)[current_game.board.turn]} "
+                                  f"{(white_user.name, black_user.name)[current_game.board.turn]} "
                                   f"Has Won!**")
 
-        board_image = Chess.get_binary_board(current_game.board)
+        # Option message that may be passed in from the caller
+        if message:
+            embed.add_field(name='',
+                            value=message,
+                            inline=False)
 
+        if show_pgn:
+            embed.add_field(name='PNG',
+                            value=f"```{self.get_pgn(current_game)}```",
+                            inline=False)
+
+        board_image = Chess.get_binary_board(current_game.board)
         embed.set_image(url="attachment://board.jpg")
+
         await ctx.send(embed=embed, file=board_image)
 
     @staticmethod
@@ -485,6 +504,17 @@ class Chess(commands.Cog):
             board.save(binary, "JPEG", quality=95, subsampling=0)
             binary.seek(0)
             return discord.File(fp=binary, filename="board.jpg")
+
+    @staticmethod
+    def get_pgn(game):
+        export = pgn.Game()
+        for idx, move in enumerate(game.board.move_stack):
+            if idx == 0:
+                node = export.add_variation(move)
+            else:
+                node = node.add_variation(move)
+
+        return export.accept(StringExporter(headers=False, columns=None))
 
 
 @Settings.bot.event
