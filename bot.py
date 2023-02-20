@@ -492,7 +492,7 @@ class Chess(commands.Cog):
                             inline=False)
 
         if show_pgn:
-            embed.add_field(name='PNG',
+            embed.add_field(name='PGN',
                             value=f"```{self.get_pgn(current_game)}```",
                             inline=False)
 
