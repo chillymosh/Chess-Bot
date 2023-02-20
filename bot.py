@@ -5,7 +5,9 @@ import json
 from json import JSONEncoder
 from datetime import datetime
 from dotenv import load_dotenv
-from chess import WHITE, BLACK, Board, Move, parse_square, pgn, SQUARE_NAMES
+from chess import Board, Move, pgn
+from chess import WHITE, BLACK, SQUARE_NAMES
+from chess import InvalidMoveError, IllegalMoveError, AmbiguousMoveError
 from chess.pgn import StringExporter
 from PIL import Image
 import discord
@@ -73,10 +75,11 @@ class Game:
     and match_id reference for the DB
     """
 
-    def __init__(self, white_id: int, black_id: int, match_id: int):
+    def __init__(self, white_id: int, black_id: int, match_id: int, last_move_san: str = None):
         self.white_id = white_id
         self.black_id = black_id
         self.match_id = match_id
+        self.last_move_san = last_move_san
         self.board = Board()
 
 
@@ -271,19 +274,13 @@ class Chess(commands.Cog):
                        guild_ids=Settings.guild_ids,
                        options=[
                            create_option(
-                               name="start",
-                               description="Starting position (ex. B1)",
-                               option_type=3,
-                               required=True
-                           ),
-                           create_option(
-                               name="end",
-                               description="End position (ex. C3)",
+                               name="move",
+                               description="Either SAN (ex. Nf3) or UCI (ex. a2-a3 or a2a3) format",
                                option_type=3,
                                required=True
                            )
                        ])
-    async def move(self, ctx, start, end):
+    async def move(self, ctx, move):
         """
         Handle a move from one of the players.
         :param ctx:
@@ -295,12 +292,6 @@ class Chess(commands.Cog):
         if not game_rec:
             return await self.send_error(ctx, description="No game is currently in progress")
 
-        try:
-            start = parse_square(start.lower())
-            end = parse_square(end.lower())
-        except ValueError:
-            return await self.send_error(ctx, description=f"Invalid move of {start} to {end}")
-
         current_game = await self.convert_game_state_to_game(game_rec['game_state'])
 
         if ctx.author_id not in [current_game.white_id, current_game.black_id]:
@@ -311,12 +302,36 @@ class Chess(commands.Cog):
         if color is not current_game.board.turn:
             return await self.send_error(ctx, "It is not your turn to make a move")
 
-        move = Move(start, end)
+        """
+        Attempt to determine if the specified move is in SAN or UCI notation. 
+        """
+        board_move = None
+        try:
+            # try UCI format first
+            board_move = Move.from_uci(move)
+        except InvalidMoveError:
+            # ignore the exception as we'll see if it's SAN, and any SAN parse failures will raise an appropriate error
+            pass
 
-        if move not in current_game.board.legal_moves:
+        if not board_move:
+            try:
+                # try SAN format if UCI failed
+                board_move = current_game.board.parse_san(move)
+            except IllegalMoveError:
+                return await self.send_error(ctx, description=f"Illegal move of {move}")
+            except AmbiguousMoveError:
+                return await self.send_error(ctx, description=f"Ambiguous move of {move}")
+            except InvalidMoveError:
+                return await self.send_error(ctx, description=f"Invalid move of {move}")
+
+        # This is necessary for a UCI move since that doesn't take the current state of the board into account.  SAN
+        # parsing does consider the current board.  So if SAN syntax is used this is redundant, but shouldn't conflict.
+        if board_move not in current_game.board.legal_moves:
             return await self.send_error(ctx, description="Illegal move for the selected piece")
 
-        current_game.board.push(move)
+        current_game.last_move_san = current_game.board.san(board_move)
+        current_game.board.push(board_move)
+
         GameStorage.db.save_game_state(game_rec['match_id'], json.dumps(current_game, cls=GameEncoder))
 
         if current_game.board.is_stalemate():
@@ -327,7 +342,6 @@ class Chess(commands.Cog):
         if current_game.board.is_checkmate():
             winner_id = ctx.author_id
             loser_id = game_rec['opponent_id'] if game_rec['user_id'] == ctx.author_id else game_rec['user_id']
-
             GameStorage.db.match_won(game_rec['match_id'], winner_id, loser_id)
             GameStorage.db.add_user_stats_win(ctx.guild_id, winner_id)
             GameStorage.db.add_user_stats_loss(ctx.guild_id, loser_id)
@@ -449,13 +463,10 @@ class Chess(commands.Cog):
                         value=f"**Black**: {black_user.mention} {('*(your turn)*', '')[current_game.board.turn]}",
                         inline=False)
 
-        if len(current_game.board.move_stack) > 0:
-            last_move = current_game.board.move_stack[-1]
-            if last_move:
-                embed.add_field(name='',
-                                value=f"**Last move**: *{SQUARE_NAMES[last_move.from_square]} "
-                                      f"to {SQUARE_NAMES[last_move.to_square]}*",
-                                inline=False)
+        if current_game.last_move_san:
+            embed.add_field(name='',
+                            value=f"**Last move**: {current_game.last_move_san}",
+                            inline=False)
 
         if current_game.board.is_stalemate():
             show_pgn = True

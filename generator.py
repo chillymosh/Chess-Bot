@@ -18,8 +18,21 @@ class Generator:
     coordinates = [ 25, 109, 194, 279, 363, 448, 531, 616 ]
 
     @staticmethod
-    def generate(board: chess.BaseBoard) -> Image:
+    def generate(board: chess.Board) -> Image:
         chessboard = Image.open("resources/chessboard.png")
+        highlight = Image.open("resources/cell_highlight.png")
+
+        last_move = None
+        if len(board.move_stack) > 0:
+            last_move = board.move_stack[-1]
+
+            x = Generator.coordinates[chess.square_file(last_move.from_square)] - 3
+            y = Generator.coordinates[7 - chess.square_rank(last_move.from_square)] - 3
+            chessboard.paste(highlight, (x, y), highlight)
+
+            x = Generator.coordinates[chess.square_file(last_move.to_square)] - 3
+            y = Generator.coordinates[7 - chess.square_rank(last_move.to_square)] - 3
+            chessboard.paste(highlight, (x, y), highlight)
 
         for y, Y in enumerate(Generator.coordinates):
             for x, X in enumerate(Generator.coordinates):
@@ -27,7 +40,8 @@ class Generator:
 
                 if piece is not None:
                     path = Generator.path(piece)
-                else: continue
+                else:
+                    continue
 
                 piece = Image.open(path).convert("RGBA")
                 
