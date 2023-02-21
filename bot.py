@@ -198,7 +198,7 @@ class Chess(commands.Cog):
                            ),
                            create_option(
                                name="rated",
-                               description="If the game result will be recorded in your stats",
+                               description="Will the game result will be recorded in your stats (default is True)",
                                option_type=5,  # bool
                                required=False
                            )
@@ -224,12 +224,16 @@ class Chess(commands.Cog):
                                  opponent.id if opponent else None,
                                  rated)
 
-        if opponent:
-            message = f"Hey {opponent.mention}, {ctx.author.name} wants to play a chess match against you! "
-        else:
-            message = f"{ctx.author.name} is looking for any challenger for a chess match! "
+        rated_msg = "a `RATED`" if rated is True else "an `UNRATED`"
 
-        await ctx.send(f"{message} Use `/accept` or `/decline`")
+        if opponent:
+            message = f"{opponent.mention}, {ctx.author.mention} wants to play a {rated_msg} chess match against you!\n\n"\
+                      f"Use `/accept` or `/decline`."
+        else:
+            message = f"{ctx.author.mention} is looking for any challenger for {rated_msg} chess match! \n\n" \
+                      f"Anyone may use `/accept` to accept the challenge."
+
+        await ctx.send(f"{message}")
 
     @cog_ext.cog_slash(name="decline",
                        description="decline an active invitation in this channel",
