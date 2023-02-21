@@ -36,6 +36,7 @@ class PostgresStorage:
                        " opponent_id bigint, "
                        " winner_id bigint, "
                        " loser_id bigint, "
+                       " rated boolean default TRUE, "
                        " status varchar(20),"
                        " created_at timestamptz default now() "
                        ");")
@@ -76,13 +77,13 @@ class PostgresStorage:
         if 'user_stats' not in table_names:
             self._create_stats_table()
 
-    def new_match(self, guild_id, channel_id, user_id, opponent_id):
+    def new_match(self, guild_id, channel_id, user_id, opponent_id, rated):
         cursor = self._connection.cursor()
         cursor.execute("insert into matches "
-                       "  (guild_id, channel_id, user_id, opponent_id, status) "
+                       "  (guild_id, channel_id, user_id, opponent_id, rated, status) "
                        " values "
-                       "  (%s, %s, %s, %s, %s) ",
-                       (guild_id, channel_id, user_id, opponent_id, DBGameStates.INVITE))
+                       "  (%s, %s, %s, %s, %s, %s) ",
+                       (guild_id, channel_id, user_id, opponent_id, rated, DBGameStates.INVITE))
 
     def get_open_invites(self, channel_id):
         cursor = self._connection.cursor()
@@ -114,7 +115,7 @@ class PostgresStorage:
 
     def get_current_game(self, channel_id):
         cursor = self._connection.cursor()
-        cursor.execute("select match_id, game_state, user_id, opponent_id "
+        cursor.execute("select match_id, game_state, user_id, opponent_id, rated "
                        "from matches "
                        "where channel_id=%s and status=%s",
                        (channel_id, DBGameStates.IN_PROGRESS))
@@ -124,7 +125,8 @@ class PostgresStorage:
                 "match_id": row[0],
                 "game_state": row[1],
                 "user_id": row[2],
-                "opponent_id": row[3]
+                "opponent_id": row[3],
+                "rated": row[4]
             }
             return result
 

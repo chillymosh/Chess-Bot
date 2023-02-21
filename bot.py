@@ -75,10 +75,11 @@ class Game:
     and match_id reference for the DB
     """
 
-    def __init__(self, white_id: int, black_id: int, match_id: int, last_move_san: str = None):
+    def __init__(self, white_id: int, black_id: int, match_id: int, rated: bool = True, last_move_san: str = None):
         self.white_id = white_id
         self.black_id = black_id
         self.match_id = match_id
+        self.rated = rated
         self.last_move_san = last_move_san
         self.board = Board()
 
@@ -194,13 +195,20 @@ class Chess(commands.Cog):
                                description="opponent",
                                option_type=6,  # user
                                required=False
+                           ),
+                           create_option(
+                               name="rated",
+                               description="If the game result will be recorded in your stats",
+                               option_type=5,  # bool
+                               required=False
                            )
                        ])
-    async def new(self, ctx, opponent=None):
+    async def new(self, ctx, opponent=None, rated=True):
         """
         Invite a specific user, or make an open invitation to any player to start a match.
         :param ctx:
         :param opponent:
+        :param rated:
         :return:
         """
         if ctx.author == opponent:
@@ -210,7 +218,11 @@ class Chess(commands.Cog):
         if game_rec:
             return await self.send_error(ctx, description="Another game is already active in this channel.")
 
-        GameStorage.db.new_match(ctx.guild_id, ctx.channel_id, ctx.author_id, opponent.id if opponent else None)
+        GameStorage.db.new_match(ctx.guild_id,
+                                 ctx.channel_id,
+                                 ctx.author_id,
+                                 opponent.id if opponent else None,
+                                 rated)
 
         if opponent:
             message = f"Hey {opponent.mention}, {ctx.author.name} wants to play a chess match against you! "
@@ -336,15 +348,17 @@ class Chess(commands.Cog):
 
         if current_game.board.is_stalemate():
             GameStorage.db.match_draw(game_rec['match_id'])
-            GameStorage.db.add_user_stats_draw(ctx.guild_id, game_rec['user_id'])
-            GameStorage.db.add_user_stats_draw(ctx.guild_id, game_rec['opponent_id'])
+            if game_rec['rated'] is True:
+                GameStorage.db.add_user_stats_draw(ctx.guild_id, game_rec['user_id'])
+                GameStorage.db.add_user_stats_draw(ctx.guild_id, game_rec['opponent_id'])
 
         if current_game.board.is_checkmate():
             winner_id = ctx.author_id
             loser_id = game_rec['opponent_id'] if game_rec['user_id'] == ctx.author_id else game_rec['user_id']
             GameStorage.db.match_won(game_rec['match_id'], winner_id, loser_id)
-            GameStorage.db.add_user_stats_win(ctx.guild_id, winner_id)
-            GameStorage.db.add_user_stats_loss(ctx.guild_id, loser_id)
+            if game_rec['rated'] is True:
+                GameStorage.db.add_user_stats_win(ctx.guild_id, winner_id)
+                GameStorage.db.add_user_stats_loss(ctx.guild_id, loser_id)
 
         await self.render_game_board(ctx, current_game)
 
@@ -388,8 +402,9 @@ class Chess(commands.Cog):
             winner_id = game_rec['user_id']
 
         GameStorage.db.surrender_game(game_rec['match_id'], winner_id, loser_id)
-        GameStorage.db.add_user_stats_win(ctx.guild_id, winner_id)
-        GameStorage.db.add_user_stats_loss(ctx.guild_id, loser_id)
+        if game_rec['rated'] is True:
+            GameStorage.db.add_user_stats_win(ctx.guild_id, winner_id)
+            GameStorage.db.add_user_stats_loss(ctx.guild_id, loser_id)
 
         current_game = await self.convert_game_state_to_game(game_rec['game_state'])
         await self.render_game_board(ctx,
